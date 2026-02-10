@@ -1,3 +1,17 @@
+<?php
+// บล็อกถ้าไม่ได้ผ่าน Cloudflare
+if (!isset($_SERVER['HTTP_CF_CONNECTING_IP'])) {
+    http_response_code(403);
+    exit('Forbidden');
+}
+
+// (ถ้าจะบล็อกเฉพาะ IP บริษัท เปิดใช้ส่วนนี้)
+// $allowedIps = ['203.0.113.10'];
+// if (!in_array($_SERVER['HTTP_CF_CONNECTING_IP'], $allowedIps)) {
+//     http_response_code(403);
+//     exit('Forbidden');
+// }
+?>
 <!DOCTYPE html>
 <html lang="th">
 <head>
