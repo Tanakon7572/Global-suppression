@@ -228,6 +228,9 @@ async function startProcess() {
 } catch (e) {
     log.innerHTML += `<span style="color:#f00">[ERROR]</span>\n`;
 }
+     btn.disabled = false;
+    log.innerHTML += `--- เสร็จสิ้นเมื่อ ${new Date().toLocaleTimeString()} ---\n`;
+}
 </script>
 </body>
 </html>
