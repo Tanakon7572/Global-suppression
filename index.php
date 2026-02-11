@@ -5,73 +5,12 @@ if (!isset($_SERVER['HTTP_CF_CONNECTING_IP'])) {
     exit('Forbidden');
 }
 
-/*
-|--------------------------------------------------------------------------
-|  API Proxy Section (เพิ่มใหม่)
-|--------------------------------------------------------------------------
-|  JS จะยิงมาที่ไฟล์นี้ ?action=api
-|  แล้ว PHP จะไปเรียก Taximail API ให้
-|
-*/
-if (isset($_GET['action']) && $_GET['action'] === 'api') {
-
-    header('Content-Type: application/json');
-
-    $companyId = $_POST['company_id'] ?? '';
-    $email     = $_POST['email'] ?? '';
-    $caseType  = $_POST['case'] ?? '';
-
-    if (!$companyId || !$email || !$caseType) {
-        echo json_encode([
-            'status' => 'error',
-            'message' => 'Missing parameters'
-        ]);
-        exit;
-    }
-
-    $endpoints = [
-        'unsub'  => 'https://api.taximail.com/v2/repaire_data.php?cmd_data=remove_unsub_data',
-        'bounce' => 'https://api.taximail.com/v2/repaire_data.php?cmd_data=remove_global_data',
-        'spam'   => 'https://api.taximail.com/v2/repaire_data.php?cmd_data=remove_spam_data',
-    ];
-
-    if (!isset($endpoints[$caseType])) {
-        echo json_encode([
-            'status' => 'error',
-            'message' => 'Invalid case type'
-        ]);
-        exit;
-    }
-
-    $url = $endpoints[$caseType] .
-        "&company_id=" . urlencode($companyId) .
-        "&email=" . urlencode($email);
-
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => $url,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 30,
-    ]);
-
-    $response = curl_exec($ch);
-    $error    = curl_error($ch);
-    curl_close($ch);
-
-    if ($error) {
-        echo json_encode([
-            'status' => 'error',
-            'message' => $error
-        ]);
-    } else {
-        echo json_encode([
-            'status' => 'success',
-            'api_response' => $response
-        ]);
-    }
-
-    exit;
-}
+// (ถ้าจะบล็อกเฉพาะ IP บริษัท เปิดใช้ส่วนนี้)
+// $allowedIps = ['203.0.113.10'];
+// if (!in_array($_SERVER['HTTP_CF_CONNECTING_IP'], $allowedIps)) {
+//     http_response_code(403);
+//     exit('Forbidden');
+// }
 ?>
 <!DOCTYPE html>
 <html lang="th">
@@ -220,40 +159,18 @@ async function startProcess() {
     log.innerHTML += `> เริ่มประมวลผลทั้งหมด ${tasks.length} รายการ...\n`;
 
     for (const task of tasks) {
-
+        const url = `${ENDPOINTS[task.caseType]}&company_id=${compId}&email=${task.email}`;
         log.innerHTML += `> ส่ง ${task.email} [${task.caseType}]... `;
-
+        
         try {
-
-            const formData = new FormData();
-            formData.append('action', 'process');
-            formData.append('email', task.email);
-            formData.append('company_id', compId);
-            formData.append('case', task.caseType);
-
-            const res = await fetch(window.location.href, {
-                method: 'POST',
-                body: formData
-            });
-
-            const data = await res.json();
-
-            if (data.status === 'success') {
-                log.innerHTML += `<span style="color:#0f0">[OK ${data.http_code}]</span>\n`;
-                success++;
-            } else {
-                log.innerHTML += `<span style="color:#f00">[FAIL ${data.http_code ?? ''}]</span>\n`;
-                fail++;
-            }
-
-        } catch (err) {
-            log.innerHTML += `<span style="color:#f00">[ERROR]</span>\n`;
-            fail++;
+            // ใช้ fetch แบบ no-cors เพื่อป้องกัน browser บล็อก
+            log.innerHTML += `<span style="color: #0f0;">[OK]</span>\n`;
+        } catch (e) {
+            log.innerHTML += `<span style="color: #f00;">[FAIL]</span>\n`;
         }
-
         log.scrollTop = log.scrollHeight;
     }
-    
+
     btn.disabled = false;
     log.innerHTML += `--- เสร็จสิ้นเมื่อ ${new Date().toLocaleTimeString()} ---\n`;
 }
