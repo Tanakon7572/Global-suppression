@@ -11,7 +11,6 @@ if (!isset($_SERVER['HTTP_CF_CONNECTING_IP'])) {
 //     http_response_code(403);
 //     exit('Forbidden');
 // }
-<?php
 // รับ AJAX process
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'process') {
 
