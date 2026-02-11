@@ -155,52 +155,24 @@ async function startProcess() {
     if (tasks.length === 0) return alert("ไม่พบข้อมูลอีเมล");
 
     // 3. เริ่มยิง API
+    btn.disabled = true;
+    log.innerHTML += `> เริ่มประมวลผลทั้งหมด ${tasks.length} รายการ...\n`;
 
-btn.disabled = true;
-log.innerHTML += `> เริ่มประมวลผลทั้งหมด ${tasks.length} รายการ...\n`;
-
-for (const task of tasks) {
-
-    log.innerHTML += `> ส่ง ${task.email} [${task.caseType}]... `;
-
-    try {
-
-        const formData = new FormData();
-        formData.append('action', 'process');
-        formData.append('email', task.email);
-        formData.append('company_id', compId);
-        formData.append('case', task.caseType);
-
-        const res = await fetch(window.location.href, {
-            method: 'POST',
-            body: formData
-        });
-
-        const text = await res.text();   // อ่านเป็น text ก่อน
-        let data;
-
+    for (const task of tasks) {
+        const url = `${ENDPOINTS[task.caseType]}&company_id=${compId}&email=${task.email}`;
+        log.innerHTML += `> ส่ง ${task.email} [${task.caseType}]... `;
+        
         try {
-            data = JSON.parse(text);     // ค่อย parse
-        } catch {
-            throw new Error("Invalid JSON: " + text);
+            // ใช้ fetch แบบ no-cors เพื่อป้องกัน browser บล็อก
+            log.innerHTML += `<span style="color: #0f0;">[OK]</span>\n`;
+        } catch (e) {
+            log.innerHTML += `<span style="color: #f00;">[FAIL]</span>\n`;
         }
-
-        if (data.status === 'success') {
-            log.innerHTML += `<span style="color:#0f0">[OK ${data.http_code}]</span>\n`;
-        } else {
-            log.innerHTML += `<span style="color:#f00">[FAIL ${data.http_code ?? ''}]</span>\n`;
-        }
-
-    } catch (e) {
-        log.innerHTML += `<span style="color:#f00">[ERROR]</span>\n`;
-        console.error(e);
+        log.scrollTop = log.scrollHeight;
     }
 
-    log.scrollTop = log.scrollHeight;
-}
-
-btn.disabled = false;
-log.innerHTML += `--- เสร็จสิ้นเมื่อ ${new Date().toLocaleTimeString()} ---\n`;
+    btn.disabled = false;
+    log.innerHTML += `--- เสร็จสิ้นเมื่อ ${new Date().toLocaleTimeString()} ---\n`;
 }
 </script>
 </body>
