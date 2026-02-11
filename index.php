@@ -5,12 +5,17 @@ if (!isset($_SERVER['HTTP_CF_CONNECTING_IP'])) {
     exit('Forbidden');
 }
 
-// (ถ้าจะบล็อกเฉพาะ IP บริษัท เปิดใช้ส่วนนี้)
-// $allowedIps = ['203.0.113.10'];
-// if (!in_array($_SERVER['HTTP_CF_CONNECTING_IP'], $allowedIps)) {
-//     http_response_code(403);
-//     exit('Forbidden');
-// }
+/* ===== เพิ่ม CORS ===== */
+header("Access-Control-Allow-Origin: https://th4-app.taximail.com");
+header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type, Authorization");
+header("Access-Control-Allow-Credentials: true");
+
+/* รองรับ preflight */
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit();
+}
 ?>
 <!DOCTYPE html>
 <html lang="th">
