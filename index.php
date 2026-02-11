@@ -1,20 +1,40 @@
 <?php
-// บล็อกถ้าไม่ได้ผ่าน Cloudflare
-if (!isset($_SERVER['HTTP_CF_CONNECTING_IP'])) {
-    http_response_code(403);
-    exit('Forbidden');
-}
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
-/* ===== เพิ่ม CORS ===== */
-header("Access-Control-Allow-Origin: https://th4-app.taximail.com");
-header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization");
-header("Access-Control-Allow-Credentials: true");
+    $email = $_POST['email'] ?? '';
+    $companyId = $_POST['company_id'] ?? '';
+    $caseType = $_POST['case'] ?? '';
 
-/* รองรับ preflight */
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit();
+    $endpoints = [
+        'unsub' => 'remove_unsub_data',
+        'bounce' => 'remove_global_data',
+        'spam' => 'remove_spam_data'
+    ];
+
+    if (!isset($endpoints[$caseType])) {
+        echo json_encode(['status' => 'error', 'message' => 'Invalid case']);
+        exit;
+    }
+
+    $url = "https://api.taximail.com/v2/repaire_data.php?cmd_data={$endpoints[$caseType]}&company_id={$companyId}&email={$email}";
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+    curl_close($ch);
+
+    header('Content-Type: application/json');
+    echo json_encode([
+        'status' => $httpCode === 200 ? 'success' : 'fail',
+        'http_code' => $httpCode,
+        'api_response' => $response
+    ]);
+    exit;
 }
 ?>
 <!DOCTYPE html>
