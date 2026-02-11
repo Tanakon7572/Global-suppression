@@ -204,33 +204,40 @@ async function startProcess() {
     log.innerHTML += `> เริ่มประมวลผลทั้งหมด ${tasks.length} รายการ...\n`;
 
     for (const task of tasks) {
-        try {
 
-    const formData = new FormData();
-    formData.append('action', 'process');
-    formData.append('email', task.email);
-    formData.append('company_id', compId);
-    formData.append('case', task.caseType);
+    log.innerHTML += `> ส่ง ${task.email} [${task.caseType}]... `;
 
-    const res = await fetch(window.location.href, {
-        method: 'POST',
-        body: formData
-    });
+    try {
 
-    const data = await res.json();
+        const formData = new FormData();
+        formData.append('action', 'process');
+        formData.append('email', task.email);
+        formData.append('company_id', compId);
+        formData.append('case', task.caseType);
 
-    if (data.status === 'success') {
-        log.innerHTML += `<span style="color:#0f0">[OK ${data.http_code}]</span>\n`;
-    } else {
-        log.innerHTML += `<span style="color:#f00">[FAIL ${data.http_code}]</span>\n`;
+        const res = await fetch(window.location.href, {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await res.json();
+
+        if (data.status === 'success') {
+            log.innerHTML += `<span style="color:#0f0">[OK ${data.http_code}]</span>\n`;
+        } else {
+            log.innerHTML += `<span style="color:#f00">[FAIL ${data.http_code}]</span>\n`;
+        }
+
+    } catch (e) {
+        log.innerHTML += `<span style="color:#f00">[ERROR]</span>\n`;
     }
 
-} catch (e) {
-    log.innerHTML += `<span style="color:#f00">[ERROR]</span>\n`;
+    log.scrollTop = log.scrollHeight;
 }
-     btn.disabled = false;
-    log.innerHTML += `--- เสร็จสิ้นเมื่อ ${new Date().toLocaleTimeString()} ---\n`;
-}
+
+btn.disabled = false;
+log.innerHTML += `--- เสร็จสิ้นเมื่อ ${new Date().toLocaleTimeString()} ---\n`;
+    
 </script>
 </body>
 </html>
