@@ -12,44 +12,6 @@ if (!isset($_SERVER['HTTP_CF_CONNECTING_IP'])) {
 //     exit('Forbidden');
 // }
 // รับ AJAX process
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'process') {
-
-    header('Content-Type: application/json');
-
-    $companyId = $_POST['company_id'] ?? '';
-    $email     = $_POST['email'] ?? '';
-    $caseType  = $_POST['case'] ?? '';
-
-    if (!$companyId || !$email || !isset($endpoints[$caseType])) {
-        echo json_encode([
-            'status' => 'error',
-            'http_code' => 400
-        ]);
-        exit;
-    }
-
-    $url = $endpoints[$caseType] .
-        '&company_id=' . urlencode($companyId) .
-        '&email=' . urlencode($email);
-
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => $url,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HEADER => true
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    echo json_encode([
-        'status' => $httpCode === 200 ? 'success' : 'error',
-        'http_code' => $httpCode
-    ]);
-
-    exit;
-}
 ?>
 <!DOCTYPE html>
 <html lang="th">
