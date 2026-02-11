@@ -11,6 +11,52 @@ if (!isset($_SERVER['HTTP_CF_CONNECTING_IP'])) {
 //     http_response_code(403);
 //     exit('Forbidden');
 // }
+<?php
+// รับ AJAX process
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'process') {
+
+    header('Content-Type: application/json');
+
+    $companyId = $_POST['company_id'] ?? '';
+    $email     = $_POST['email'] ?? '';
+    $caseType  = $_POST['case'] ?? '';
+
+    $endpoints = [
+        'unsub'  => 'https://api.taximail.com/v2/repaire_data.php?cmd_data=remove_unsub_data',
+        'bounce' => 'https://api.taximail.com/v2/repaire_data.php?cmd_data=remove_global_data',
+        'spam'   => 'https://api.taximail.com/v2/repaire_data.php?cmd_data=remove_spam_data'
+    ];
+
+    if (!$companyId || !$email || !isset($endpoints[$caseType])) {
+        echo json_encode([
+            'status' => 'error',
+            'http_code' => 400
+        ]);
+        exit;
+    }
+
+    $url = $endpoints[$caseType] .
+        '&company_id=' . urlencode($companyId) .
+        '&email=' . urlencode($email);
+
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HEADER => true
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    echo json_encode([
+        'status' => $httpCode === 200 ? 'success' : 'error',
+        'http_code' => $httpCode
+    ]);
+
+    exit;
+}
 ?>
 <!DOCTYPE html>
 <html lang="th">
@@ -159,20 +205,29 @@ async function startProcess() {
     log.innerHTML += `> เริ่มประมวลผลทั้งหมด ${tasks.length} รายการ...\n`;
 
     for (const task of tasks) {
-        const url = `${ENDPOINTS[task.caseType]}&company_id=${compId}&email=${task.email}`;
-        log.innerHTML += `> ส่ง ${task.email} [${task.caseType}]... `;
-        
         try {
-            // ใช้ fetch แบบ no-cors เพื่อป้องกัน browser บล็อก
-            log.innerHTML += `<span style="color: #0f0;">[OK]</span>\n`;
-        } catch (e) {
-            log.innerHTML += `<span style="color: #f00;">[FAIL]</span>\n`;
-        }
-        log.scrollTop = log.scrollHeight;
+
+    const formData = new FormData();
+    formData.append('action', 'process');
+    formData.append('email', task.email);
+    formData.append('company_id', compId);
+    formData.append('case', task.caseType);
+
+    const res = await fetch(window.location.href, {
+        method: 'POST',
+        body: formData
+    });
+
+    const data = await res.json();
+
+    if (data.status === 'success') {
+        log.innerHTML += `<span style="color:#0f0">[OK ${data.http_code}]</span>\n`;
+    } else {
+        log.innerHTML += `<span style="color:#f00">[FAIL ${data.http_code}]</span>\n`;
     }
 
-    btn.disabled = false;
-    log.innerHTML += `--- เสร็จสิ้นเมื่อ ${new Date().toLocaleTimeString()} ---\n`;
+} catch (e) {
+    log.innerHTML += `<span style="color:#f00">[ERROR]</span>\n`;
 }
 </script>
 </body>
