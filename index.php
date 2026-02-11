@@ -253,6 +253,10 @@ async function startProcess() {
 
         log.scrollTop = log.scrollHeight;
     }
+    
+    btn.disabled = false;
+    log.innerHTML += `--- เสร็จสิ้นเมื่อ ${new Date().toLocaleTimeString()} ---\n`;
+}
 </script>
 </body>
 </html>
