@@ -200,10 +200,11 @@ async function startProcess() {
     if (tasks.length === 0) return alert("ไม่พบข้อมูลอีเมล");
 
     // 3. เริ่มยิง API
-    btn.disabled = true;
-    log.innerHTML += `> เริ่มประมวลผลทั้งหมด ${tasks.length} รายการ...\n`;
 
-    for (const task of tasks) {
+btn.disabled = true;
+log.innerHTML += `> เริ่มประมวลผลทั้งหมด ${tasks.length} รายการ...\n`;
+
+for (const task of tasks) {
 
     log.innerHTML += `> ส่ง ${task.email} [${task.caseType}]... `;
 
@@ -220,16 +221,24 @@ async function startProcess() {
             body: formData
         });
 
-        const data = await res.json();
+        const text = await res.text();   // อ่านเป็น text ก่อน
+        let data;
+
+        try {
+            data = JSON.parse(text);     // ค่อย parse
+        } catch {
+            throw new Error("Invalid JSON: " + text);
+        }
 
         if (data.status === 'success') {
             log.innerHTML += `<span style="color:#0f0">[OK ${data.http_code}]</span>\n`;
         } else {
-            log.innerHTML += `<span style="color:#f00">[FAIL ${data.http_code}]</span>\n`;
+            log.innerHTML += `<span style="color:#f00">[FAIL ${data.http_code ?? ''}]</span>\n`;
         }
 
     } catch (e) {
         log.innerHTML += `<span style="color:#f00">[ERROR]</span>\n`;
+        console.error(e);
     }
 
     log.scrollTop = log.scrollHeight;
@@ -237,7 +246,6 @@ async function startProcess() {
 
 btn.disabled = false;
 log.innerHTML += `--- เสร็จสิ้นเมื่อ ${new Date().toLocaleTimeString()} ---\n`;
-    
 </script>
 </body>
 </html>
