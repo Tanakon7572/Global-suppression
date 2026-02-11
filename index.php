@@ -20,12 +20,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'proce
     $email     = $_POST['email'] ?? '';
     $caseType  = $_POST['case'] ?? '';
 
-    $endpoints = [
-        'unsub'  => 'https://api.taximail.com/v2/repaire_data.php?cmd_data=remove_unsub_data',
-        'bounce' => 'https://api.taximail.com/v2/repaire_data.php?cmd_data=remove_global_data',
-        'spam'   => 'https://api.taximail.com/v2/repaire_data.php?cmd_data=remove_spam_data'
-    ];
-
     if (!$companyId || !$email || !isset($endpoints[$caseType])) {
         echo json_encode([
             'status' => 'error',
