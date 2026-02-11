@@ -1,16 +1,31 @@
 <?php
-// บล็อกถ้าไม่ได้ผ่าน Cloudflare
-if (!isset($_SERVER['HTTP_CF_CONNECTING_IP'])) {
-    http_response_code(403);
-    exit('Forbidden');
-}
+// proxy.php
+header('Content-Type: application/json');
+header('Access-Control-Allow-Origin: *'); 
 
-// (ถ้าจะบล็อกเฉพาะ IP บริษัท เปิดใช้ส่วนนี้)
-// $allowedIps = ['203.0.113.10'];
-// if (!in_array($_SERVER['HTTP_CF_CONNECTING_IP'], $allowedIps)) {
-//     http_response_code(403);
-//     exit('Forbidden');
-// }
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $targetUrl = $_POST['url'] ?? '';
+
+    if (!$targetUrl) {
+        echo json_encode(['status' => 'error', 'message' => 'No URL provided']);
+        exit;
+    }
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $targetUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); // กรณี SSL มีปัญหา
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    echo json_encode([
+        'http_code' => $httpCode,
+        'response' => json_decode($response) ?: $response
+    ]);
+}
 ?>
 <!DOCTYPE html>
 <html lang="th">
@@ -158,21 +173,32 @@ async function startProcess() {
     btn.disabled = true;
     log.innerHTML += `> เริ่มประมวลผลทั้งหมด ${tasks.length} รายการ...\n`;
 
-    for (const task of tasks) {
-        const url = `${ENDPOINTS[task.caseType]}&company_id=${compId}&email=${task.email}`;
-        log.innerHTML += `> ส่ง ${task.email} [${task.caseType}]... `;
-        
-        try {
-            // ใช้ fetch แบบ no-cors เพื่อป้องกัน browser บล็อก
-            log.innerHTML += `<span style="color: #0f0;">[OK]</span>\n`;
-        } catch (e) {
-            log.innerHTML += `<span style="color: #f00;">[FAIL]</span>\n`;
-        }
-        log.scrollTop = log.scrollHeight;
-    }
+    // เปลี่ยนช่วงการวนลูปยิง API เป็นโค้ดนี้
+for (const task of tasks) {
+    const apiUrl = `${ENDPOINTS[task.caseType]}&company_id=${compId}&email=${task.email}`;
+    log.innerHTML += `> ส่ง ${task.email} [${task.caseType}]... `;
+    
+    try {
+        // สร้าง FormData เพื่อส่ง URL ไปให้ Proxy
+        const formData = new FormData();
+        formData.append('url', apiUrl);
 
-    btn.disabled = false;
-    log.innerHTML += `--- เสร็จสิ้นเมื่อ ${new Date().toLocaleTimeString()} ---\n`;
+        const response = await fetch('proxy.php', {
+            method: 'POST',
+            body: formData
+        });
+
+        const result = await response.json();
+
+        if (result.http_code === 200) {
+            log.innerHTML += `<span style="color: #0f0;">[สำเร็จ]</span>\n`;
+        } else {
+            log.innerHTML += `<span style="color: #ffc107;">[Error: ${result.http_code}]</span>\n`;
+        }
+    } catch (e) {
+        log.innerHTML += `<span style="color: #f00;">[ล้มเหลว: ${e.message}]</span>\n`;
+    }
+    log.scrollTop = log.scrollHeight;
 }
 </script>
 </body>
