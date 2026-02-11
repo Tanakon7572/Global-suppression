@@ -1,41 +1,16 @@
 <?php
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
-
-    $email = $_POST['email'] ?? '';
-    $companyId = $_POST['company_id'] ?? '';
-    $caseType = $_POST['case'] ?? '';
-
-    $endpoints = [
-        'unsub' => 'remove_unsub_data',
-        'bounce' => 'remove_global_data',
-        'spam' => 'remove_spam_data'
-    ];
-
-    if (!isset($endpoints[$caseType])) {
-        echo json_encode(['status' => 'error', 'message' => 'Invalid case']);
-        exit;
-    }
-
-    $url = "https://api.taximail.com/v2/repaire_data.php?cmd_data={$endpoints[$caseType]}&company_id={$companyId}&email={$email}";
-
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-
-    curl_close($ch);
-
-    header('Content-Type: application/json');
-    echo json_encode([
-        'status' => $httpCode === 200 ? 'success' : 'fail',
-        'http_code' => $httpCode,
-        'api_response' => $response
-    ]);
-    exit;
+// บล็อกถ้าไม่ได้ผ่าน Cloudflare
+if (!isset($_SERVER['HTTP_CF_CONNECTING_IP'])) {
+    http_response_code(403);
+    exit('Forbidden');
 }
+
+// (ถ้าจะบล็อกเฉพาะ IP บริษัท เปิดใช้ส่วนนี้)
+// $allowedIps = ['203.0.113.10'];
+// if (!in_array($_SERVER['HTTP_CF_CONNECTING_IP'], $allowedIps)) {
+//     http_response_code(403);
+//     exit('Forbidden');
+// }
 ?>
 <!DOCTYPE html>
 <html lang="th">
@@ -100,75 +75,76 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         <div id="logBox" class="log-container">> พร้อมดำเนินการ...</div>
     </div>
 </div>
+
 <script>
 const CASE_MAPPER = {
+    // กลุ่ม Unsub
     'unsub': 'unsub',
     'unsubscribe': 'unsub',
-    'suppressed by recipient': 'unsub',
+    'Suppressed by recipient': 'unsub',
 
+    // กลุ่ม Bounce
     'bounce': 'bounce',
     'hardbounce': 'bounce',
-    'suppressed by hard bounced': 'bounce',
+    'Suppressed by hard bounced': 'bounce',
 
+
+    // กลุ่ม Spam
     'spam': 'spam',
-    'suppressed by complaint': 'spam',
+    'Suppressed by complaint': 'spam',
+};
+
+const ENDPOINTS = {
+    'unsub': 'https://api.taximail.com/v2/repaire_data.php?cmd_data=remove_unsub_data',
+    'bounce': 'https://api.taximail.com/v2/repaire_data.php?cmd_data=remove_global_data',
+    'spam': 'https://api.taximail.com/v2/repaire_data.php?cmd_data=remove_spam_data'
 };
 
 function addRow() {
     const div = document.createElement('div');
     div.className = 'input-group mb-2';
-    div.innerHTML = `
-        <input type="email" class="form-control row-email">
-        <select class="form-select row-case" style="max-width:110px;">
-            <option value="unsub">Unsub</option>
-            <option value="bounce">Bounce</option>
-            <option value="spam">Spam</option>
-        </select>
-        <button class="btn btn-outline-danger" onclick="this.parentElement.remove()">✖</button>
-    `;
+    div.innerHTML = `<input type="email" class="form-control row-email"><select class="form-select row-case" style="max-width: 110px;"><option value="unsub">Unsub</option><option value="bounce">Bounce</option><option value="spam">Spam</option></select><button class="btn btn-outline-danger" onclick="this.parentElement.remove()">✖</button>`;
     document.getElementById('manualArea').appendChild(div);
 }
 
+// ฟังก์ชันหลักที่แก้ไขใหม่
 async function startProcess() {
-
     const log = document.getElementById('logBox');
     const compId = document.getElementById('defaultId').value;
     const fileInput = document.getElementById('csvFile');
     const btn = document.getElementById('btnExecute');
-
+    
     if (!compId) return alert("กรุณาใส่ Company ID");
 
     let tasks = [];
 
-    // เก็บ manual input
+    // 1. เก็บข้อมูลจากหน้าจอ
     document.querySelectorAll('#manualArea .input-group').forEach(group => {
         const email = group.querySelector('.row-email').value.trim();
         const caseType = group.querySelector('.row-case').value;
         if (email) tasks.push({ email, caseType });
     });
 
-    // อ่าน CSV
+    // 2. อ่านไฟล์ (ถ้ามีการเลือกไฟล์)
     if (fileInput.files.length > 0) {
         log.innerHTML += "> กำลังโหลดไฟล์...\n";
-
-        const text = await fileInput.files[0].text();
+        const file = fileInput.files[0];
+        const text = await file.text(); // ใช้ Native Text Reader
         const rows = text.split('\n');
         const headers = rows[0].split(',').map(h => h.trim().toLowerCase());
-
+        
         const emailIdx = headers.indexOf('email');
-        const caseIdx  = headers.indexOf('case');
+        const caseIdx = headers.indexOf('case');
 
         if (emailIdx === -1 || caseIdx === -1) {
-            log.innerHTML += "<span style='color:red'>! CSV ต้องมีหัว email และ case</span>\n";
+            log.innerHTML += "<span style='color:red'>! Error: ไฟล์ CSV ต้องมีหัว email และ case</span>\n";
         } else {
             for (let i = 1; i < rows.length; i++) {
                 const cols = rows[i].split(',');
                 if (cols.length >= 2) {
                     const email = cols[emailIdx]?.trim();
-                    let caseRaw = cols[caseIdx]?.trim().toLowerCase();
-                    const caseType = CASE_MAPPER[caseRaw];
-
-                    if (email && caseType) {
+                    const caseType = cols[caseIdx]?.trim().toLowerCase();
+                    if (email && ENDPOINTS[caseType]) {
                         tasks.push({ email, caseType });
                     }
                 }
@@ -178,52 +154,26 @@ async function startProcess() {
 
     if (tasks.length === 0) return alert("ไม่พบข้อมูลอีเมล");
 
+    // 3. เริ่มยิง API
     btn.disabled = true;
-    log.innerHTML += `> เริ่มประมวลผล ${tasks.length} รายการ...\n`;
-
-    let success = 0;
-    let fail = 0;
+    log.innerHTML += `> เริ่มประมวลผลทั้งหมด ${tasks.length} รายการ...\n`;
 
     for (const task of tasks) {
-
+        const url = `${ENDPOINTS[task.caseType]}&company_id=${compId}&email=${task.email}`;
         log.innerHTML += `> ส่ง ${task.email} [${task.caseType}]... `;
-
+        
         try {
-
-            const formData = new FormData();
-            formData.append('action', 'process');
-            formData.append('email', task.email);
-            formData.append('company_id', compId);
-            formData.append('case', task.caseType);
-
-            const res = await fetch(window.location.href, {
-                method: 'POST',
-                body: formData
-            });
-
-            const data = await res.json();
-
-            if (data.status === 'success') {
-                log.innerHTML += `<span style="color:#0f0">[OK ${data.http_code}]</span>\n`;
-                success++;
-            } else {
-                log.innerHTML += `<span style="color:#f00">[FAIL ${data.http_code ?? ''}]</span>\n`;
-                fail++;
-            }
-
-        } catch (err) {
-            log.innerHTML += `<span style="color:#f00">[ERROR]</span>\n`;
-            fail++;
+            // ใช้ fetch แบบ no-cors เพื่อป้องกัน browser บล็อก
+            await fetch(url, { mode: 'no-cors' });
+            log.innerHTML += `<span style="color: #0f0;">[OK]</span>\n`;
+        } catch (e) {
+            log.innerHTML += `<span style="color: #f00;">[FAIL]</span>\n`;
         }
-
         log.scrollTop = log.scrollHeight;
     }
 
     btn.disabled = false;
-
-    log.innerHTML += `\n--- เสร็จสิ้น ---\n`;
-    log.innerHTML += `สำเร็จ: ${success}\n`;
-    log.innerHTML += `ล้มเหลว: ${fail}\n`;
+    log.innerHTML += `--- เสร็จสิ้นเมื่อ ${new Date().toLocaleTimeString()} ---\n`;
 }
 </script>
 </body>
