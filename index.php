@@ -166,52 +166,52 @@ async function startProcess() {
 
     if (tasks.length === 0) return alert("ไม่พบข้อมูลที่จะส่ง");
 
-    btn.disabled = true;
-    log.innerHTML += `[${new Date().toLocaleTimeString()}] เริ่มส่ง API ผ่าน Proxy (${tasks.length} รายการ)\n`;
+    async function startProcess() {
+    const log = document.getElementById('logBox');
+    const compId = document.getElementById('defaultId').value;
+    const fileInput = document.getElementById('csvFile');
+    const btn = document.getElementById('btnExecute');
+    
+    if (!compId) return alert("กรุณาใส่ Company ID");
 
-    // 3. ยิง API ทีละรายการผ่าน Proxy
-    // ... (โค้ดส่วนบนคงเดิม) ...
+    let tasks = [];
+    // (Logic การเก็บข้อมูลจาก Manual และ CSV คงเดิมตามที่คุณใช้ได้)
+    // ...
+
+    btn.disabled = true;
+    log.innerHTML = `> เริ่มประมวลผลผ่าน Proxy...\n`;
 
     for (const task of tasks) {
-        const finalApiUrl = `${ENDPOINTS[task.caseType]}&company_id=${compId}&email=${task.email}`;
-        log.innerHTML += `> Processing: ${task.email} [${task.caseType}]... `;
+        const targetUrl = `${ENDPOINTS[task.caseType]}&company_id=${compId}&email=${task.email}`;
+        log.innerHTML += `> กำลังส่ง: ${task.email}\n`;
         
         try {
             const formData = new FormData();
-            formData.append('url', finalApiUrl);
+            formData.append('url', targetUrl);
 
-            // แก้ไข: ใช้เส้นทางไฟล์ที่แน่นอน และดักจับ Error ที่ละเอียดขึ้น
-            const response = await fetch('./proxy.php', { // ใส่ ./ เพื่อยืนยันว่าอยู่ที่ folder เดียวกัน
+            const response = await fetch('proxy.php', {
                 method: 'POST',
                 body: formData
             });
 
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
             const result = await response.json();
 
-            if (result.http_code === 200) {
-                log.innerHTML += `<span class="status-success">[SUCCESS 200]</span>\n`;
-            } else {
-                // แสดงข้อความ Error จาก PHP ถ้ามี
-                const errMsg = result.message || 'API Error';
-                log.innerHTML += `<span class="status-error">[FAILED ${result.http_code}: ${errMsg}]</span>\n`;
-            }
+            // แสดง Header (สีเทา)
+            log.innerHTML += `<span style="color: #888;">[Headers]\n${result.headers}</span>`;
+            
+            // แสดง Body (สีเขียว - ผลลัพธ์ string(19)... จะโชว์ที่นี่)
+            log.innerHTML += `<span style="color: #0f0;">[Response Body]\n${result.body}</span>\n`;
+            log.innerHTML += `--------------------------------------------------\n`;
+
         } catch (e) {
-            log.innerHTML += `<span class="status-error">[ERROR: ${e.message}]</span>\n`;
-            console.error("Fetch Error:", e); // ดูรายละเอียดใน F12 Console
+            log.innerHTML += `<span style="color: #f00;">[ERROR]: ${e.message}</span>\n`;
         }
         log.scrollTop = log.scrollHeight;
     }
 
-// ... (โค้ดส่วนล่างคงเดิม) ...
-
     btn.disabled = false;
-    log.innerHTML += `[${new Date().toLocaleTimeString()}] --- จบการทำงาน ---\n`;
+    log.innerHTML += `--- เสร็จสิ้นการทำงาน ---`;
 }
 </script>
-
 </body>
 </html>
