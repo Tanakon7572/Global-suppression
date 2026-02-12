@@ -1,79 +1,46 @@
 <?php
-/**
- * 1. ส่วนประมวลผล API (Server-side)
- */
-if (isset($_GET['ajax_action']) && $_GET['ajax_action'] === 'execute_api') {
-    header('Content-Type: application/json');
-    $targetUrl = $_POST['url'] ?? '';
-
-    if (!$targetUrl) {
-        echo json_encode(['error' => 'URL is missing']);
-        exit;
-    }
-
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $targetUrl);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HEADER, true);          // ดึง Header มาแสดงผล
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-
-    $response = curl_exec($ch);
-    $header_size = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
-    
-    $header_text = substr($response, 0, $header_size);
-    $body_text = substr($response, $header_size);
-    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    
-    curl_close($ch);
-
-    echo json_encode([
-        'http_code' => $http_code,
-        'headers'   => $header_text,
-        'body'      => $body_text // แสดงผล string(19) "list_..." และ int(1)
-    ]);
-    exit;
-}
-
-/**
- * 2. ส่วนความปลอดภัย (Cloudflare)
- */
+// บล็อกถ้าไม่ได้ผ่าน Cloudflare
 if (!isset($_SERVER['HTTP_CF_CONNECTING_IP'])) {
     http_response_code(403);
     exit('Forbidden');
 }
+
+// (ถ้าจะบล็อกเฉพาะ IP บริษัท เปิดใช้ส่วนนี้)
+// $allowedIps = ['203.0.113.10'];
+// if (!in_array($_SERVER['HTTP_CF_CONNECTING_IP'], $allowedIps)) {
+//     http_response_code(403);
+//     exit('Forbidden');
+// }
 ?>
 <!DOCTYPE html>
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <title>Taximail Repair Tool - Final URL Fix</title>
+    <title>Taximail Tool - Ultra Stable</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        .log-container { height: 450px; overflow-y: auto; background: #000; color: #0f0; padding: 15px; font-family: monospace; border-radius: 8px; white-space: pre-wrap; font-size: 12px; border: 1px solid #333; }
+        .log-container { height: 300px; overflow-y: auto; background: #000; color: #0f0; padding: 15px; font-family: monospace; border-radius: 8px; white-space: pre-wrap; font-size: 13px; }
         .section-box { background: white; padding: 20px; border-radius: 10px; border: 1px solid #ddd; margin-bottom: 20px; }
-        .header-text { color: #888; }
-        .body-text { color: #0f0; font-weight: bold; }
     </style>
 </head>
 <body class="bg-light">
 
 <div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3">
-        <h3 class="mb-0 text-primary">ปลด Global Suppression</h3>
-        <div class="d-flex align-items-center bg-white p-2 rounded border shadow-sm">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3 class="mb-0">ปลด Global suppression</h3>
+        <div class="d-flex align-items-center bg-white p-2 rounded border">
             <span class="me-2 fw-bold">Company ID:</span>
-            <input type="number" id="defaultId" class="form-control form-control-sm" style="width: 100px;" value="16501">
+            <input type="number" id="defaultId" class="form-control form-control-sm" style="width: 100px;" value="">
         </div>
     </div>
 
     <div class="row">
         <div class="col-md-6">
-            <div class="section-box h-100">
-                <h5 class="fw-bold mb-3">1. เพิ่มรายการ (Manual)</h5>
+            <div class="section-box">
+                <h5 class="fw-bold border-bottom pb-2">1. กรอกอีเมล</h5>
                 <div id="manualArea">
-                    <div class="input-group mb-2 shadow-sm">
-                        <input type="email" class="form-control row-email" placeholder="email@example.com">
+                    <div class="input-group mb-2">
+                        <input type="email" class="form-control row-email" placeholder="">
                         <select class="form-select row-case" style="max-width: 110px;">
                             <option value="unsub">Unsub</option>
                             <option value="bounce">Bounce</option>
@@ -81,44 +48,56 @@ if (!isset($_SERVER['HTTP_CF_CONNECTING_IP'])) {
                         </select>
                     </div>
                 </div>
-                <button class="btn btn-sm btn-outline-primary mt-1" onclick="addRow()">+ เพิ่มแถว</button>
+                <button class="btn btn-sm btn-link" onclick="addRow()">+ เพิ่มแถว</button>
             </div>
         </div>
 
         <div class="col-md-6">
-            <div class="section-box h-100">
-                <h5 class="fw-bold mb-3">2. แนบไฟล์ (CSV)</h5>
-                <input type="file" id="csvFile" class="form-control mb-3" accept=".csv">
-                <div class="alert alert-info py-2 small mb-0">หัวตาราง: <b>email, case</b></div>
+            <div class="section-box">
+                <h5 class="fw-bold border-bottom pb-2">2. แนบไฟล์ (CSV เท่านั้น)</h5>
+                <input type="file" id="csvFile" class="form-control mb-2" accept=".csv">
+                <div class="alert alert-warning py-1 small mb-0">
+                    หัวตารางต้องเป็น: <b>email,case</b>
+                </div>
             </div>
         </div>
     </div>
 
-    <div class="text-center my-4">
-        <button id="btnExecute" onclick="startProcess()" class="btn btn-success btn-lg px-5 shadow fw-bold rounded-pill">เริ่มดำเนินการ (Execute)</button>
+    <div class="text-center my-3">
+        <button id="btnExecute" onclick="startProcess()" class="btn btn-success btn-lg px-5 shadow fw-bold">เริ่มส่งข้อมูล (Execute)</button>
     </div>
 
     <div class="card shadow-sm border-0">
         <div class="card-header bg-dark text-white d-flex justify-content-between">
-            <span class="small fw-bold">Response Headers & Raw Body Logs</span>
+            <span>Status Logs</span>
             <button class="btn btn-sm btn-outline-light py-0" onclick="document.getElementById('logBox').innerHTML = ''">Clear</button>
         </div>
-        <div id="logBox" class="log-container">> รอดำเนินการ...</div>
+        <div id="logBox" class="log-container">> พร้อมดำเนินการ...</div>
     </div>
 </div>
 
 <script>
-// ชุด URL ตามที่คุณกำหนด
+const CASE_MAPPER = {
+    // กลุ่ม Unsub
+    'unsub': 'unsub',
+    'unsubscribe': 'unsub',
+    'Suppressed by recipient': 'unsub',
+
+    // กลุ่ม Bounce
+    'bounce': 'bounce',
+    'hardbounce': 'bounce',
+    'Suppressed by hard bounced': 'bounce',
+
+
+    // กลุ่ม Spam
+    'spam': 'spam',
+    'Suppressed by complaint': 'spam',
+};
+
 const ENDPOINTS = {
     'unsub': 'https://api.taximail.com/v2/repaire_data.php?cmd_data=remove_unsub_data',
     'bounce': 'https://api.taximail.com/v2/repaire_data.php?cmd_data=remove_global_data',
     'spam': 'https://api.taximail.com/v2/repaire_data.php?cmd_data=remove_spam_data'
-};
-
-const CASE_MAPPER = {
-    'unsub': 'unsub', 'unsubscribe': 'unsub', 'suppressed by recipient': 'unsub',
-    'bounce': 'bounce', 'hardbounce': 'bounce', 'suppressed by hard bounced': 'bounce',
-    'spam': 'spam', 'suppressed by complaint': 'spam'
 };
 
 function addRow() {
@@ -128,6 +107,7 @@ function addRow() {
     document.getElementById('manualArea').appendChild(div);
 }
 
+// ฟังก์ชันหลักที่แก้ไขใหม่
 async function startProcess() {
     const log = document.getElementById('logBox');
     const compId = document.getElementById('defaultId').value;
@@ -137,61 +117,63 @@ async function startProcess() {
     if (!compId) return alert("กรุณาใส่ Company ID");
 
     let tasks = [];
+
+    // 1. เก็บข้อมูลจากหน้าจอ
     document.querySelectorAll('#manualArea .input-group').forEach(group => {
         const email = group.querySelector('.row-email').value.trim();
         const caseType = group.querySelector('.row-case').value;
         if (email) tasks.push({ email, caseType });
     });
 
+    // 2. อ่านไฟล์ (ถ้ามีการเลือกไฟล์)
     if (fileInput.files.length > 0) {
-        const text = await fileInput.files[0].text();
+        log.innerHTML += "> กำลังโหลดไฟล์...\n";
+        const file = fileInput.files[0];
+        const text = await file.text(); // ใช้ Native Text Reader
         const rows = text.split('\n');
         const headers = rows[0].split(',').map(h => h.trim().toLowerCase());
-        const eIdx = headers.indexOf('email'), cIdx = headers.indexOf('case');
-        if (eIdx !== -1 && cIdx !== -1) {
+        
+        const emailIdx = headers.indexOf('email');
+        const caseIdx = headers.indexOf('case');
+
+        if (emailIdx === -1 || caseIdx === -1) {
+            log.innerHTML += "<span style='color:red'>! Error: ไฟล์ CSV ต้องมีหัว email และ case</span>\n";
+        } else {
             for (let i = 1; i < rows.length; i++) {
                 const cols = rows[i].split(',');
                 if (cols.length >= 2) {
-                    const mapped = CASE_MAPPER[cols[cIdx]?.trim().toLowerCase()];
-                    if (cols[eIdx] && mapped) tasks.push({ email: cols[eIdx].trim(), caseType: mapped });
+                    const email = cols[emailIdx]?.trim();
+                    const caseType = cols[caseIdx]?.trim().toLowerCase();
+                    if (email && ENDPOINTS[caseType]) {
+                        tasks.push({ email, caseType });
+                    }
                 }
             }
         }
     }
 
-    if (tasks.length === 0) return alert("ไม่พบข้อมูล");
+    if (tasks.length === 0) return alert("ไม่พบข้อมูลอีเมล");
 
+    // 3. เริ่มยิง API
     btn.disabled = true;
-    log.innerHTML = `> เริ่มส่งคำขอด้วยชุด URL ที่กำหนด...\n`;
+    log.innerHTML += `> เริ่มประมวลผลทั้งหมด ${tasks.length} รายการ...\n`;
 
     for (const task of tasks) {
-        // การประกอบ URL ให้ตรงตามรูปภาพ Query String
-        const targetUrl = `${ENDPOINTS[task.caseType]}&email=${encodeURIComponent(task.email)}&company_id=${compId}`;
-        log.innerHTML += `> REQUEST: ${task.email}\n`;
+        const url = `${ENDPOINTS[task.caseType]}&company_id=${compId}&email=${task.email}`;
+        log.innerHTML += `> ส่ง ${task.email} [${task.caseType}]... `;
         
         try {
-            const formData = new FormData();
-            formData.append('url', targetUrl);
-
-            // ส่งหาตัวเองที่ index.php พร้อมตัวแปร ajax_action เพื่อให้ PHP ยิง API
-            const response = await fetch('index.php?ajax_action=execute_api', {
-                method: 'POST',
-                body: formData
-            });
-
-            const result = await response.json();
-
-            log.innerHTML += `<span class="header-text">[HEADERS]\n${result.headers}</span>`;
-            log.innerHTML += `<span class="body-text">[BODY]\n${result.body}</span>\n`;
-            log.innerHTML += `--------------------------------------------------\n`;
+            // ใช้ fetch แบบ no-cors เพื่อป้องกัน browser บล็อก
+            await fetch(url, { mode: 'no-cors' });
+            log.innerHTML += `<span style="color: #0f0;">[OK]</span>\n`;
         } catch (e) {
-            log.innerHTML += `<span style="color: #f00;">[ERROR]: ${e.message}</span>\n`;
+            log.innerHTML += `<span style="color: #f00;">[FAIL]</span>\n`;
         }
         log.scrollTop = log.scrollHeight;
     }
 
     btn.disabled = false;
-    log.innerHTML += `--- เสร็จสิ้น ---`;
+    log.innerHTML += `--- เสร็จสิ้นเมื่อ ${new Date().toLocaleTimeString()} ---\n`;
 }
 </script>
 </body>
