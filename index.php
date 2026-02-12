@@ -84,22 +84,15 @@ $userIp = isset($_SERVER['HTTP_CF_CONNECTING_IP']) ? $_SERVER['HTTP_CF_CONNECTIN
 </div>
 
 <script>
-// ตั้งค่าคำอ่าน (Keyword Mapping)
 const CASE_MAPPER = {
     'unsub': 'unsub',
     'unsubscribe': 'unsub',
     'suppressed by recipient': 'unsub',
-    'ยกเลิก': 'unsub',
-
     'bounce': 'bounce',
     'hardbounce': 'bounce',
     'suppressed by hard bounced': 'bounce',
-    'เสีย': 'bounce',
-
     'spam': 'spam',
-    'suppressed by complaint': 'spam',
-    'complain': 'spam',
-    'สแปม': 'spam'
+    'suppressed by complaint': 'spam'
 };
 
 const ENDPOINTS = {
@@ -108,65 +101,7 @@ const ENDPOINTS = {
     'spam': 'https://api.taximail.com/v2/repaire_data.php?cmd_data=remove_spam_data'
 };
 
-function addRow() {
-    const div = document.createElement('div');
-    div.className = 'input-group mb-2 shadow-sm';
-    div.innerHTML = `<input type="email" class="form-control row-email"><select class="form-select row-case" style="max-width: 120px;"><option value="unsub">Unsub</option><option value="bounce">Bounce</option><option value="spam">Spam</option></select><button class="btn btn-outline-danger" onclick="this.parentElement.remove()">✖</button>`;
-    document.getElementById('manualArea').appendChild(div);
-}
-
 async function startProcess() {
-    const log = document.getElementById('logBox');
-    const compId = document.getElementById('defaultId').value;
-    const fileInput = document.getElementById('csvFile');
-    const btn = document.getElementById('btnExecute');
-    
-    if (!compId) return alert("กรุณาระบุ Company ID");
-
-    let tasks = [];
-
-    // 1. ดึงข้อมูลจาก Manual
-    document.querySelectorAll('#manualArea .input-group').forEach(group => {
-        const email = group.querySelector('.row-email').value.trim();
-        const caseType = group.querySelector('.row-case').value;
-        if (email) tasks.push({ email, caseType });
-    });
-
-    // 2. ดึงข้อมูลจากไฟล์ CSV
-    if (fileInput.files.length > 0) {
-        log.innerHTML += `[${new Date().toLocaleTimeString()}] กำลังประมวลผลไฟล์...\n`;
-        const text = await fileInput.files[0].text();
-        const rows = text.split('\n');
-        
-        if (rows.length > 0) {
-            const headers = rows[0].split(',').map(h => h.trim().toLowerCase());
-            const emailIdx = headers.indexOf('email');
-            const caseIdx = headers.indexOf('case');
-
-            if (emailIdx === -1 || caseIdx === -1) {
-                log.innerHTML += `<span class="status-error">! ไม่พบหัวตาราง email หรือ case ในไฟล์</span>\n`;
-            } else {
-                for (let i = 1; i < rows.length; i++) {
-                    const cols = rows[i].split(',');
-                    if (cols.length >= 2) {
-                        const email = cols[emailIdx]?.trim();
-                        const rawCase = cols[caseIdx]?.trim().toLowerCase();
-                        const mappedCase = CASE_MAPPER[rawCase];
-                        
-                        if (email && mappedCase) {
-                            tasks.push({ email, caseType: mappedCase });
-                        } else if (email) {
-                            log.innerHTML += `<span class="status-warn">! ข้าม ${email}: ไม่รู้จักเคส "${rawCase}"</span>\n`;
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    if (tasks.length === 0) return alert("ไม่พบข้อมูลที่จะส่ง");
-
-    async function startProcess() {
     const log = document.getElementById('logBox');
     const compId = document.getElementById('defaultId').value;
     const fileInput = document.getElementById('csvFile');
@@ -175,20 +110,53 @@ async function startProcess() {
     if (!compId) return alert("กรุณาใส่ Company ID");
 
     let tasks = [];
-    // (Logic การเก็บข้อมูลจาก Manual และ CSV คงเดิมตามที่คุณใช้ได้)
-    // ...
+
+    // 1. ดึงจาก Manual
+    document.querySelectorAll('#manualArea .input-group').forEach(group => {
+        const email = group.querySelector('.row-email').value.trim();
+        const caseType = group.querySelector('.row-case').value;
+        if (email) tasks.push({ email, caseType });
+    });
+
+    // 2. ดึงจาก CSV
+    if (fileInput.files.length > 0) {
+        log.innerHTML += "> กำลังอ่านไฟล์ CSV...\n";
+        const file = fileInput.files[0];
+        const text = await file.text();
+        const rows = text.split('\n');
+        const headers = rows[0].split(',').map(h => h.trim().toLowerCase());
+        const emailIdx = headers.indexOf('email');
+        const caseIdx = headers.indexOf('case');
+
+        if (emailIdx !== -1 && caseIdx !== -1) {
+            for (let i = 1; i < rows.length; i++) {
+                const cols = rows[i].split(',');
+                if (cols.length >= 2) {
+                    const email = cols[emailIdx]?.trim();
+                    const rawCase = cols[caseIdx]?.trim().toLowerCase();
+                    const mappedCase = CASE_MAPPER[rawCase];
+                    if (email && mappedCase) tasks.push({ email, caseType: mappedCase });
+                }
+            }
+        }
+    }
+
+    if (tasks.length === 0) return alert("ไม่พบข้อมูลที่จะส่ง");
 
     btn.disabled = true;
-    log.innerHTML = `> เริ่มประมวลผลผ่าน Proxy...\n`;
+    log.innerHTML = `[${new Date().toLocaleTimeString()}] เริ่มส่งผ่าน Proxy เพื่อดึงข้อมูล Raw Debug...\n`;
+    log.innerHTML += `--------------------------------------------------\n`;
 
+    // 3. วนลูปส่งผ่าน Proxy
     for (const task of tasks) {
         const targetUrl = `${ENDPOINTS[task.caseType]}&company_id=${compId}&email=${task.email}`;
-        log.innerHTML += `> กำลังส่ง: ${task.email}\n`;
+        log.innerHTML += `> กำลังประมวลผล: ${task.email} [${task.caseType}]\n`;
         
         try {
             const formData = new FormData();
             formData.append('url', targetUrl);
 
+            // เรียกผ่าน proxy.php เพื่อเลี่ยง CORS และดึง Body/Header
             const response = await fetch('proxy.php', {
                 method: 'POST',
                 body: formData
@@ -196,22 +164,24 @@ async function startProcess() {
 
             const result = await response.json();
 
-            // แสดง Header (สีเทา)
-            log.innerHTML += `<span style="color: #888;">[Headers]\n${result.headers}</span>`;
+            // แสดง Response Header (สีเทา)
+            log.innerHTML += `<span style="color: #888;">[HTTP HEADERS]\n${result.headers}</span>`;
             
-            // แสดง Body (สีเขียว - ผลลัพธ์ string(19)... จะโชว์ที่นี่)
-            log.innerHTML += `<span style="color: #0f0;">[Response Body]\n${result.body}</span>\n`;
+            // แสดง Response Body (สีเขียว - จะโชว์ string(19) "list_subscriber_..." ที่นี่)
+            log.innerHTML += `<span style="color: #0f0; font-weight: bold;">[RESPONSE BODY]\n${result.body}</span>\n`;
             log.innerHTML += `--------------------------------------------------\n`;
 
         } catch (e) {
             log.innerHTML += `<span style="color: #f00;">[ERROR]: ${e.message}</span>\n`;
+            log.innerHTML += `--------------------------------------------------\n`;
         }
         log.scrollTop = log.scrollHeight;
     }
 
     btn.disabled = false;
-    log.innerHTML += `--- เสร็จสิ้นการทำงาน ---`;
+    log.innerHTML += `[${new Date().toLocaleTimeString()}] --- เสร็จสิ้นการทำงานทั้งหมด ---`;
 }
+</script>
 </script>
 </body>
 </html>
