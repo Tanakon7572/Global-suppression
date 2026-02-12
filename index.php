@@ -170,6 +170,8 @@ async function startProcess() {
     log.innerHTML += `[${new Date().toLocaleTimeString()}] เริ่มส่ง API ผ่าน Proxy (${tasks.length} รายการ)\n`;
 
     // 3. ยิง API ทีละรายการผ่าน Proxy
+    // ... (โค้ดส่วนบนคงเดิม) ...
+
     for (const task of tasks) {
         const finalApiUrl = `${ENDPOINTS[task.caseType]}&company_id=${compId}&email=${task.email}`;
         log.innerHTML += `> Processing: ${task.email} [${task.caseType}]... `;
@@ -178,23 +180,33 @@ async function startProcess() {
             const formData = new FormData();
             formData.append('url', finalApiUrl);
 
-            const response = await fetch('proxy.php', {
+            // แก้ไข: ใช้เส้นทางไฟล์ที่แน่นอน และดักจับ Error ที่ละเอียดขึ้น
+            const response = await fetch('./proxy.php', { // ใส่ ./ เพื่อยืนยันว่าอยู่ที่ folder เดียวกัน
                 method: 'POST',
                 body: formData
             });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
 
             const result = await response.json();
 
             if (result.http_code === 200) {
                 log.innerHTML += `<span class="status-success">[SUCCESS 200]</span>\n`;
             } else {
-                log.innerHTML += `<span class="status-error">[FAILED ${result.http_code}]</span>\n`;
+                // แสดงข้อความ Error จาก PHP ถ้ามี
+                const errMsg = result.message || 'API Error';
+                log.innerHTML += `<span class="status-error">[FAILED ${result.http_code}: ${errMsg}]</span>\n`;
             }
         } catch (e) {
             log.innerHTML += `<span class="status-error">[ERROR: ${e.message}]</span>\n`;
+            console.error("Fetch Error:", e); // ดูรายละเอียดใน F12 Console
         }
         log.scrollTop = log.scrollHeight;
     }
+
+// ... (โค้ดส่วนล่างคงเดิม) ...
 
     btn.disabled = false;
     log.innerHTML += `[${new Date().toLocaleTimeString()}] --- จบการทำงาน ---\n`;
