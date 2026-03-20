@@ -23,7 +23,7 @@ if (!isset($_SERVER['HTTP_CF_CONNECTING_IP'])) {
         <h3 class="mb-0">ปลด Global suppression (Direct Mode)</h3>
         <div class="d-flex align-items-center bg-white p-2 rounded border">
             <span class="me-2 fw-bold">Company ID:</span>
-            <input type="number" id="defaultId" class="form-control form-control-sm" style="width: 100px;" value="16501">
+            <input type="number" id="defaultId" class="form-control form-control-sm" style="width: 100px;">
         </div>
     </div>
 
